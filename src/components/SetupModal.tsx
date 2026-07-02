@@ -4,8 +4,9 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Trophy, Users, Award, Play, History, Trash2, FileSpreadsheet, X, Tv, Wifi } from 'lucide-react';
+import { Trophy, Users, Award, Play, History, Trash2, FileSpreadsheet, X, Tv, Wifi, CloudDownload } from 'lucide-react';
 import { ContestState, SavedContestSummary } from '../types';
+import { getFirestoreSession } from '../lib/firebase';
 
 interface SetupModalProps {
   onStart: (config: {
@@ -25,6 +26,7 @@ interface SetupModalProps {
   onConnectSpectator?: (roomId: string) => void;
   isSpectatorOnly?: boolean;
   onAdminLogout?: () => void;
+  onRecoverFromCloud?: (state: ContestState) => void;
 }
 
 export default function SetupModal({ 
@@ -35,7 +37,8 @@ export default function SetupModal({
   onResume,
   onConnectSpectator,
   isSpectatorOnly = false,
-  onAdminLogout
+  onAdminLogout,
+  onRecoverFromCloud
 }: SetupModalProps) {
   const [name, setName] = useState('Cuộc thi HỌC TRÒ NƯỚC OA 2026');
   const [organizer, setOrganizer] = useState('Ban Chấp Hành Đoàn Trường / Đơn vị');
@@ -45,8 +48,10 @@ export default function SetupModal({
   const [round2MaxQuestion, setRound2MaxQuestion] = useState(30);
   const [colsPerRow, setColsPerRow] = useState(10);
   const [namesText, setNamesText] = useState('');
-  const [activeTab, setActiveTab] = useState<'new' | 'history' | 'spectator'>(isSpectatorOnly ? 'spectator' : 'new');
+  const [activeTab, setActiveTab] = useState<'new' | 'history' | 'spectator' | 'recovery'>(isSpectatorOnly ? 'spectator' : 'new');
   const [spectatorRoomId, setSpectatorRoomId] = useState('');
+  const [recoveryRoomId, setRecoveryRoomId] = useState('');
+  const [isRecovering, setIsRecovering] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   // Auto-detect spectator room in query param on mount
@@ -77,6 +82,25 @@ export default function SetupModal({
 
   const handleDiscardSession = () => {
     setShowDiscardConfirm(true);
+  };
+
+  const handleCloudRecovery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!recoveryRoomId.trim()) return;
+
+    try {
+      setIsRecovering(true);
+      const recoveredState = await getFirestoreSession(recoveryRoomId.trim());
+      if (recoveredState && onRecoverFromCloud) {
+        onRecoverFromCloud(recoveredState);
+      } else {
+        alert('Không tìm thấy dữ liệu hoặc dữ liệu không hợp lệ cho mã phòng này!');
+      }
+    } catch (err) {
+      alert('Đã xảy ra lỗi khi kết nối Đám mây. Vui lòng kiểm tra lại mạng hoặc mã phòng!');
+    } finally {
+      setIsRecovering(false);
+    }
   };
 
   const handleStart = (e: React.FormEvent) => {
@@ -249,6 +273,21 @@ export default function SetupModal({
               <span>Khách xem Realtime</span>
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
             </button>
+            {!isSpectatorOnly && (
+              <button
+                id="tab-recovery-contest"
+                type="button"
+                onClick={() => setActiveTab('recovery')}
+                className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ml-6 ${
+                  activeTab === 'recovery'
+                    ? 'border-blue-500 text-blue-400'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <CloudDownload className="w-4 h-4 text-blue-400" />
+                <span>Khôi phục từ Đám mây</span>
+              </button>
+            )}
           </div>
 
           {activeTab === 'new' ? (
@@ -537,7 +576,45 @@ export default function SetupModal({
                 </button>
               </div>
             </div>
-          )}
+          ) : activeTab === 'recovery' ? (
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-widest">
+                <CloudDownload className="w-4 h-4 text-blue-400" />
+                <span>Lấy lại quyền điều khiển từ đám mây</span>
+              </div>
+              
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Trường hợp máy tính cũ bị hỏng hoặc mất kết nối, bạn có thể nhập <strong>Mã phòng thi đấu</strong> để tải lại toàn bộ trạng thái cuộc thi về máy tính mới này và tiếp tục điều khiển bình thường.
+              </p>
+
+              <form onSubmit={handleCloudRecovery} className="space-y-4 bg-slate-950/40 p-5 rounded-xl border border-slate-805">
+                <div className="space-y-1.5">
+                  <label htmlFor="recovery-room-id" className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Mã phòng thi đấu (Session ID)
+                  </label>
+                  <input
+                    id="recovery-room-id"
+                    type="text"
+                    required
+                    value={recoveryRoomId}
+                    onChange={(e) => setRecoveryRoomId(e.target.value.trim())}
+                    placeholder="Ví dụ: contest_1720000000000"
+                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-lg text-sm font-mono text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all uppercase placeholder-slate-700 font-bold"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  id="btn-recover-cloud"
+                  disabled={!recoveryRoomId || isRecovering}
+                  className="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-500 hover:brightness-110 disabled:opacity-50 text-white font-black text-sm rounded-xl transition-all shadow-lg shadow-blue-500/10 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <CloudDownload className={`w-4 h-4 text-white ${isRecovering ? 'animate-bounce' : ''}`} />
+                  {isRecovering ? 'ĐANG TẢI DỮ LIỆU...' : 'KÉO DỮ LIỆU VỀ MÁY NÀY'}
+                </button>
+              </form>
+            </div>
+          ) : null}
         </div>
       </div>
 

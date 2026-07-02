@@ -929,6 +929,12 @@ export default function App() {
     }
   };
 
+  // Recover session from Cloud
+  const handleRecoverFromCloud = (recoveredState: ContestState) => {
+    saveStateToStorage(recoveredState);
+    setUndoStack([]);
+  };
+
   // Load a historical contest
   const handleLoadHistory = (id: string) => {
     const fullJson = localStorage.getItem(`rungchuongvang_contest_full_${id}`);
@@ -1307,6 +1313,7 @@ export default function App() {
           }}
           isSpectatorOnly={isSpectatorSetupMode}
           onAdminLogout={handleAdminLogout}
+          onRecoverFromCloud={handleRecoverFromCloud}
         />
       ) : (
         /* Standard Panel screen */

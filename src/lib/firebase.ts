@@ -241,3 +241,23 @@ export const listenToFirestoreSession = (sessionId: string, onUpdate: (stateObj:
     console.error('Lỗi đăng ký lắng nghe realtime từ Firestore:', error);
   });
 };
+
+/**
+ * Fetches a session state from Firestore for Cloud Recovery (Admin)
+ */
+export const getFirestoreSession = async (sessionId: string): Promise<any | null> => {
+  try {
+    const docRef = doc(db, 'sessions', sessionId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      if (data && data.stateJson) {
+        return JSON.parse(data.stateJson);
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('Lỗi tải dữ liệu phục hồi từ Firestore:', error);
+    throw error;
+  }
+};
