@@ -175,7 +175,7 @@ export default function GoogleSheetsSyncPanel({
     if (!token) return;
     setIsLoading(true);
     try {
-      const title = `Kết quả Rung Chuông Vàng - ${state.name}`;
+      const title = `Kết quả HỌC TRÒ NƯỚC OA - ${state.name}`;
       const res = await createGoogleSpreadsheet(title, token);
       setSpreadsheetId(res.spreadsheetId);
       setSpreadsheetUrl(res.spreadsheetUrl);

@@ -37,7 +37,7 @@ export default function SetupModal({
   isSpectatorOnly = false,
   onAdminLogout
 }: SetupModalProps) {
-  const [name, setName] = useState('Cuộc thi Rung Chuông Vàng 2026');
+  const [name, setName] = useState('Cuộc thi HỌC TRÒ NƯỚC OA 2026');
   const [organizer, setOrganizer] = useState('Ban Chấp Hành Đoàn Trường / Đơn vị');
   const [totalContestants, setTotalContestants] = useState(64);
   const [round1MaxQuestion, setRound1MaxQuestion] = useState(15);
@@ -81,7 +81,7 @@ export default function SetupModal({
 
   const handleStart = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanName = name.trim() || 'Rung Chuông Vàng';
+    const cleanName = name.trim() || 'HỌC TRÒ NƯỚC OA';
     const cleanOrg = organizer.trim() || 'Ban Tổ Chức';
     
     // Parse custom names
@@ -130,7 +130,7 @@ export default function SetupModal({
             </div>
             <div>
               <h2 className="text-2xl font-black font-sans tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-500 uppercase">
-                Rung Chuông Vàng
+                HỌC TRÒ NƯỚC OA
               </h2>
               <p className="text-xs text-slate-400 mt-2 leading-relaxed">
                 Hệ thống quản lý trực quan cho người điều phối. Theo dõi thời gian thực, quản lý cứu trợ và tự động xuất kết quả.
@@ -264,7 +264,7 @@ export default function SetupModal({
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Ví dụ: Rung Chuông Vàng - Khối 12 niên khóa 2026"
+                  placeholder="Ví dụ: HỌC TRÒ NƯỚC OA - Khối 12 niên khóa 2026"
                   className="w-full px-4 py-2.5 bg-slate-950/60 border border-slate-800 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all font-sans"
                 />
               </div>
