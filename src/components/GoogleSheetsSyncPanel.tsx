@@ -86,6 +86,19 @@ export default function GoogleSheetsSyncPanel({
     }
   }, [state.currentQuestion, token, spreadsheetId, autoSave]);
 
+  // Real-time debounce for ranking sync to Google Sheets (one-way sync from Web to Sheet)
+  // This satisfies the requirement to update Google Sheets in real-time (with a 3s delay to avoid API limits)
+  // whenever any contestant is eliminated, rescued, or changes score.
+  useEffect(() => {
+    if (autoSave && token && spreadsheetId) {
+      const timer = setTimeout(() => {
+        handleSyncRankingsToSheet();
+      }, 3000); // 3 seconds debounce
+
+      return () => clearTimeout(timer);
+    }
+  }, [state.contestants, autoSave, token, spreadsheetId]);
+
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
