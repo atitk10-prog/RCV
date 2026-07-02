@@ -40,6 +40,7 @@ export default function ProjectorView({ state, onClose, isSpectator = false }: P
   const [timerPreset, setTimerPreset] = useState<number>(15); // Default 15s
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [hideCelebration, setHideCelebration] = useState<boolean>(false);
+  const [showLeaderboard, setShowLeaderboard] = useState<boolean>(false);
   const [hideRescueOverlay, setHideRescueOverlay] = useState(false);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -59,15 +60,17 @@ export default function ProjectorView({ state, onClose, isSpectator = false }: P
   
   const eliminatedCount = displayedContestants.filter((c) => c.status === 'eliminated').length;
   
-  // Compute champions
+  // Compute champions - check both isCompleted flag AND champion status (for spectator sync)
   const champions = useMemo(() => {
-    if (!state.isCompleted) return [];
-    return state.contestants.filter(c => c.status === 'champion');
-  }, [state.isCompleted, state.contestants]);
+    const champList = state.contestants.filter(c => c.status === 'champion');
+    return champList;
+  }, [state.contestants]);
+
+  const isContestEnded = state.isCompleted || champions.length > 0;
 
   // Compute Top 10 leaderboard with SAME sorting as Admin (ReportsAndLogs)
   const top10Leaderboard = useMemo(() => {
-    if (!state.isCompleted) return [];
+    if (!isContestEnded) return [];
 
     const sorted = [...state.contestants].sort((a, b) => {
       // Round 2 participants first
@@ -143,7 +146,7 @@ export default function ProjectorView({ state, onClose, isSpectator = false }: P
     // Include all contestants with displayRank <= 10 (handles ties at boundary)
     const cutoff = withRanks.filter(c => c.displayRank <= 10);
     return cutoff.length > 0 ? cutoff : withRanks.slice(0, 10);
-  }, [state.isCompleted, state.contestants]);
+  }, [isContestEnded, state.contestants]);
 
   // Trigger countdown ticks
   useEffect(() => {
@@ -319,6 +322,21 @@ export default function ProjectorView({ state, onClose, isSpectator = false }: P
         >
           {isSpectator ? 'Trở về Trang chủ' : 'Trở về Bàn Admin'}
         </button>
+
+        {/* Button to show Top 10 leaderboard (always visible when contest ended) */}
+        {isContestEnded && (
+          <button
+            onClick={() => setShowLeaderboard(!showLeaderboard)}
+            className={`px-4 py-2 border text-xs font-black rounded-xl transition-all cursor-pointer shadow-md flex items-center gap-1.5 ${
+              showLeaderboard 
+                ? 'bg-amber-500 border-amber-400 text-slate-950 hover:brightness-110' 
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
+            }`}
+          >
+            <Award className="w-4 h-4" />
+            {showLeaderboard ? 'Đóng Bảng Xếp Hạng' : 'Xem Top 10 🏆'}
+          </button>
+        )}
       </div>
 
       {/* Main Grid & Highlight banner container */}
@@ -380,7 +398,7 @@ export default function ProjectorView({ state, onClose, isSpectator = false }: P
         {/* Central visual grid (Maximized for projector) */}
         <div className="lg:col-span-3 bg-slate-900/40 border border-slate-850 rounded-3xl p-5 flex flex-col justify-between shadow-lg relative min-h-[450px] backdrop-blur-lg">
           
-          {state.isCompleted && champions.length > 0 ? (
+          {(isContestEnded && champions.length > 0) || showLeaderboard ? (
             /* Full Leaderboard Overlay when contest completed */
             <div className="absolute inset-0 bg-gradient-to-br from-slate-950/98 via-slate-950/95 to-amber-950/10 backdrop-blur-xl rounded-3xl flex flex-col p-6 z-20 border border-amber-500/20 overflow-y-auto">
               {/* Champion Banner */}
@@ -581,7 +599,7 @@ export default function ProjectorView({ state, onClose, isSpectator = false }: P
         </div>
       </div>
 
-      {state.isCompleted && champions.length > 0 && !hideCelebration && (
+      {isContestEnded && champions.length > 0 && !hideCelebration && (
         <ChampionCelebration 
           champions={champions}
           onClose={() => setHideCelebration(true)} 

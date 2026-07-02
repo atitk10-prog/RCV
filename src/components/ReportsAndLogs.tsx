@@ -444,7 +444,7 @@ export default function ReportsAndLogs({ state, onSaveHistory, onSetContestants 
                   }`}
                 >
                   {/* STT (sequential number) */}
-                  <td className="py-2.5 px-2 text-center text-[10px] text-slate-500 font-mono">
+                  <td className="py-2.5 px-2 text-center text-[10px] text-slate-200 font-mono">
                     {idx + 1}
                   </td>
                   {/* Rank index */}
