@@ -461,7 +461,33 @@ export default function App() {
       return a.id - b.id;
     });
 
-    const rescueIds = sorted.slice(0, count).map((c) => c.id);
+    const isRound2 = state.currentRound === 2;
+    const getScore = (c: any) => isRound2 ? (c.round2CorrectCount || 0) : (c.round1CorrectCount || 0);
+    const getRescues = (c: any) => c.rescueCount || 0;
+    const getElimQ = (c: any) => c.eliminatedAtQuestion || 0;
+
+    let finalRescueCount = Math.min(count, sorted.length);
+    if (finalRescueCount > 0 && finalRescueCount < sorted.length) {
+      const boundary = sorted[finalRescueCount - 1];
+      const boundaryScore = getScore(boundary);
+      const boundaryRescues = getRescues(boundary);
+      const boundaryElimQ = getElimQ(boundary);
+
+      while (finalRescueCount < sorted.length) {
+        const next = sorted[finalRescueCount];
+        if (
+          getScore(next) === boundaryScore &&
+          getRescues(next) === boundaryRescues &&
+          getElimQ(next) === boundaryElimQ
+        ) {
+          finalRescueCount++;
+        } else {
+          break;
+        }
+      }
+    }
+
+    const rescueIds = sorted.slice(0, finalRescueCount).map((c) => c.id);
 
     const newlyRescued: Contestant[] = [];
     const updatedContestants = state.contestants.map((c) => {
@@ -580,8 +606,36 @@ export default function App() {
       return a.id - b.id;
     });
 
-    // Select the top half
-    const selectedIds = sortedRound1.slice(0, Math.min(selectCount, sortedRound1.length)).map(c => c.id);
+    // Select the top half, but extend if there are ties
+    let finalSelectCount = Math.min(selectCount, sortedRound1.length);
+    if (finalSelectCount > 0 && finalSelectCount < sortedRound1.length) {
+      const boundary = sortedRound1[finalSelectCount - 1];
+      const boundaryCorrect = boundary.round1CorrectCount || 0;
+      const boundaryRescue = boundary.rescueCount || 0;
+      const boundaryActive = boundary.status === 'active' || boundary.status === 'rescued' || boundary.status === 'champion' ? 1 : 0;
+      const boundaryElimQ = boundary.status === 'eliminated' ? (boundary.eliminatedAtQuestion || 0) : 999;
+
+      while (finalSelectCount < sortedRound1.length) {
+        const next = sortedRound1[finalSelectCount];
+        const nextCorrect = next.round1CorrectCount || 0;
+        const nextRescue = next.rescueCount || 0;
+        const nextActive = next.status === 'active' || next.status === 'rescued' || next.status === 'champion' ? 1 : 0;
+        const nextElimQ = next.status === 'eliminated' ? (next.eliminatedAtQuestion || 0) : 999;
+
+        if (
+          nextCorrect === boundaryCorrect &&
+          nextRescue === boundaryRescue &&
+          nextActive === boundaryActive &&
+          nextElimQ === boundaryElimQ
+        ) {
+          finalSelectCount++;
+        } else {
+          break;
+        }
+      }
+    }
+
+    const selectedIds = sortedRound1.slice(0, finalSelectCount).map(c => c.id);
 
     // Map contestants for Round 2
     const updatedContestants = state.contestants.map((c) => {
@@ -664,7 +718,36 @@ export default function App() {
       return a.id - b.id;
     });
 
-    const selectedIds = sortedRound1.slice(0, Math.min(selectCount, sortedRound1.length)).map(c => c.id);
+    // Select the top half, but extend if there are ties
+    let finalSelectCount2 = Math.min(selectCount, sortedRound1.length);
+    if (finalSelectCount2 > 0 && finalSelectCount2 < sortedRound1.length) {
+      const boundary = sortedRound1[finalSelectCount2 - 1];
+      const boundaryCorrect = boundary.round1CorrectCount || 0;
+      const boundaryRescue = boundary.rescueCount || 0;
+      const boundaryActive = boundary.status === 'active' || boundary.status === 'rescued' || boundary.status === 'champion' ? 1 : 0;
+      const boundaryElimQ = boundary.status === 'eliminated' ? (boundary.eliminatedAtQuestion || 0) : 999;
+
+      while (finalSelectCount2 < sortedRound1.length) {
+        const next = sortedRound1[finalSelectCount2];
+        const nextCorrect = next.round1CorrectCount || 0;
+        const nextRescue = next.rescueCount || 0;
+        const nextActive = next.status === 'active' || next.status === 'rescued' || next.status === 'champion' ? 1 : 0;
+        const nextElimQ = next.status === 'eliminated' ? (next.eliminatedAtQuestion || 0) : 999;
+
+        if (
+          nextCorrect === boundaryCorrect &&
+          nextRescue === boundaryRescue &&
+          nextActive === boundaryActive &&
+          nextElimQ === boundaryElimQ
+        ) {
+          finalSelectCount2++;
+        } else {
+          break;
+        }
+      }
+    }
+
+    const selectedIds = sortedRound1.slice(0, finalSelectCount2).map(c => c.id);
 
     const updatedContestants = state.contestants.map((c) => {
       const isSelected = selectedIds.includes(c.id);
