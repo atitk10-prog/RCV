@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   FileSpreadsheet, Share2, LogOut, CheckCircle2, AlertTriangle, 
   RefreshCw, CloudLightning, Copy, ExternalLink, Wifi, WifiOff, Check
@@ -69,12 +69,19 @@ export default function GoogleSheetsSyncPanel({
     localStorage.setItem(`rungchuongvang_sync_queue_${state.id}`, JSON.stringify(syncQueue));
   }, [syncQueue, state.id]);
 
+  const syncQueueRef = useRef(syncQueue);
+  useEffect(() => {
+    syncQueueRef.current = syncQueue;
+  }, [syncQueue]);
+
   // Background processor for the queue
   useEffect(() => {
+    let isProcessing = false;
     const processQueue = async () => {
-      if (!token || !spreadsheetId || syncQueue.length === 0) return;
+      if (!token || !spreadsheetId || isProcessing || syncQueueRef.current.length === 0) return;
       
-      const item = syncQueue[0];
+      isProcessing = true;
+      const item = syncQueueRef.current[0];
       try {
         if (item.type === 'append') {
           await appendSheetRow(spreadsheetId, item.range, item.values, token);
@@ -86,12 +93,14 @@ export default function GoogleSheetsSyncPanel({
         setSyncQueue(prev => prev.filter(q => q.id !== item.id));
       } catch (err) {
         console.error('Lỗi đồng bộ ngầm, sẽ thử lại sau:', err);
+      } finally {
+        isProcessing = false;
       }
     };
 
-    const interval = setInterval(processQueue, 10000); // Check every 10 seconds
+    const interval = setInterval(processQueue, 2000); // Check every 2 seconds
     return () => clearInterval(interval);
-  }, [syncQueue, token, spreadsheetId]);
+  }, [token, spreadsheetId]);
 
   // Sync spreadsheetId from parent state if available
   useEffect(() => {
