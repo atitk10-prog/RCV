@@ -19,6 +19,55 @@ interface ReportsAndLogsProps {
 export default function ReportsAndLogs({ state, onSaveHistory, onSetContestants }: ReportsAndLogsProps) {
   const [rankings, setRankings] = useState<Contestant[]>([]);
 
+  // Calculate tie logic
+  const isTied = (a: Contestant, b: Contestant, isRound2: boolean) => {
+    if (isRound2) {
+      if (!!a.isInRound2 !== !!b.isInRound2) return false;
+      if (a.isInRound2) {
+        if (a.round2CorrectCount !== b.round2CorrectCount) return false;
+        if (a.round1CorrectCount !== b.round1CorrectCount) return false;
+        
+        const aAlive = a.status === 'active' || a.status === 'rescued' || a.status === 'champion' ? 1 : 0;
+        const bAlive = b.status === 'active' || b.status === 'rescued' || b.status === 'champion' ? 1 : 0;
+        if (aAlive !== bAlive) return false;
+        
+        const aElim = a.status === 'eliminated' ? (a.eliminatedAtQuestion || 0) : 999;
+        const bElim = b.status === 'eliminated' ? (b.eliminatedAtQuestion || 0) : 999;
+        if (aElim !== bElim) return false;
+        
+        if ((a.rescueCount || 0) !== (b.rescueCount || 0)) return false;
+        return true;
+      } else {
+        if (a.round1CorrectCount !== b.round1CorrectCount) return false;
+        if ((a.eliminatedAtQuestion || 0) !== (b.eliminatedAtQuestion || 0)) return false;
+        if ((a.rescueCount || 0) !== (b.rescueCount || 0)) return false;
+        return true;
+      }
+    } else {
+      if (a.round1CorrectCount !== b.round1CorrectCount) return false;
+      const aAlive = a.status === 'active' || a.status === 'rescued' || a.status === 'champion' ? 1 : 0;
+      const bAlive = b.status === 'active' || b.status === 'rescued' || b.status === 'champion' ? 1 : 0;
+      if (aAlive !== bAlive) return false;
+      const aElim = a.status === 'eliminated' ? (a.eliminatedAtQuestion || 0) : 999;
+      const bElim = b.status === 'eliminated' ? (b.eliminatedAtQuestion || 0) : 999;
+      if (aElim !== bElim) return false;
+      if ((a.rescueCount || 0) !== (b.rescueCount || 0)) return false;
+      return true;
+    }
+  };
+
+  const computedRankings = React.useMemo(() => {
+    const result = [];
+    let currentRank = 1;
+    for (let i = 0; i < rankings.length; i++) {
+      if (i > 0 && !isTied(rankings[i], rankings[i-1], state.currentRound === 2)) {
+        currentRank = i + 1;
+      }
+      result.push({ ...rankings[i], displayRank: currentRank });
+    }
+    return result;
+  }, [rankings, state.currentRound]);
+
   // Calculate and sort rankings automatically on state mount/change
   useEffect(() => {
     const isRound2 = state.currentRound === 2;
@@ -199,9 +248,12 @@ export default function ReportsAndLogs({ state, onSaveHistory, onSetContestants 
         rowClass = 'font-weight: bold; background-color: #fef3c7; color: #b45309;';
       }
 
+      // @ts-ignore
+      const dRank = c.displayRank || (idx + 1);
+
       tableRows += `
         <tr style="${rowClass}">
-          <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: center; font-weight: bold;">${idx + 1}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: center; font-weight: bold;">${dRank}</td>
           <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: center; font-family: monospace;"><b>${`0${c.id}`.slice(-2)}</b></td>
           <td style="border: 1px solid #cbd5e1; padding: 10px;">${c.name}</td>
           <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: center;">${c.round1CorrectCount || 0}</td>
@@ -346,8 +398,10 @@ export default function ReportsAndLogs({ state, onSaveHistory, onSetContestants 
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-850 select-none">
-            {rankings.map((c, idx) => {
+            {computedRankings.map((c, idx) => {
               const paddedId = `0${c.id}`.slice(-2);
+              const rank = c.displayRank;
+              const isTop10 = rank <= 10;
               
               let statusLabel = (
                 <span className="px-2 py-0.5 rounded-full text-xxs font-bold bg-emerald-500/10 text-emerald-450 border border-emerald-500/20">
@@ -383,27 +437,27 @@ export default function ReportsAndLogs({ state, onSaveHistory, onSetContestants 
                   className={`text-xs transition-all ${
                     c.status === 'champion' 
                       ? 'bg-amber-500/10 hover:bg-amber-500/20 font-semibold' 
-                      : idx < 10 
+                      : (state.isCompleted && isTop10) || (!state.isCompleted && idx < 10)
                         ? 'bg-emerald-500/5 hover:bg-emerald-500/15 border-l-4 border-emerald-500/30 font-semibold' 
                         : 'hover:bg-slate-950/20'
                   }`}
                 >
                   {/* Rank index */}
                   <td className="py-2.5 px-3 text-center font-bold">
-                    {idx < 3 ? (
+                    {rank <= 3 ? (
                       <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-extrabold ${
-                        idx === 0 ? 'bg-amber-500 text-slate-950' :
-                        idx === 1 ? 'bg-slate-400 text-slate-950' :
+                        rank === 1 ? 'bg-amber-500 text-slate-950' :
+                        rank === 2 ? 'bg-slate-400 text-slate-950' :
                         'bg-amber-800 text-white'
                       }`}>
-                        {idx + 1}
+                        {rank}
                       </span>
-                    ) : idx < 10 ? (
+                    ) : isTop10 ? (
                       <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
-                        {idx + 1}
+                        {rank}
                       </span>
                     ) : (
-                      <span className="text-slate-400">{idx + 1}</span>
+                      <span className="text-slate-400">{rank}</span>
                     )}
                   </td>
 

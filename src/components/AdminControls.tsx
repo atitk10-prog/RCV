@@ -27,8 +27,8 @@ interface AdminControlsProps {
   onAutoRescuePercent: (percent: number) => void;
   onRescueAll: () => void;
   onRescueLatest: (count: number) => void;
-  onRescueCustomIds: (ids: number[]) => void;
   onUpdateMaxQuestion: (round: 1 | 2, maxQuestion: number) => void;
+  onEndRound2?: () => void;
 }
 
 export default function AdminControls({
@@ -49,6 +49,7 @@ export default function AdminControls({
   onRescueLatest,
   onRescueCustomIds,
   onUpdateMaxQuestion,
+  onEndRound2,
 }: AdminControlsProps) {
   const [showAutoRescue, setShowAutoRescue] = useState(false);
   const [rescueCountInput, setRescueCountInput] = useState('');
@@ -296,9 +297,19 @@ export default function AdminControls({
           )}
 
           {state.currentRound === 2 && !state.isCompleted && (
-            <div className="text-center py-2 px-3 bg-emerald-500/10 text-[10px] text-emerald-400 font-bold rounded-lg border border-emerald-500/20 flex items-center justify-center gap-1">
-              <span className="h-1.5 w-1.5 bg-emerald-400 rounded-full animate-bounce"></span>
-              Đang tham gia Vòng 2 (Câu {state.round2StartQuestion || 16} → {state.round2MaxQuestion || 30})
+            <div className="flex flex-col gap-2">
+              <div className="text-center py-2 px-3 bg-emerald-500/10 text-[10px] text-emerald-400 font-bold rounded-lg border border-emerald-500/20 flex items-center justify-center gap-1">
+                <span className="h-1.5 w-1.5 bg-emerald-400 rounded-full animate-bounce"></span>
+                Đang tham gia Vòng 2 (Câu {state.round2StartQuestion || 16} → {state.round2MaxQuestion || 30})
+              </div>
+              <button
+                id="btn-end-round2"
+                onClick={onEndRound2}
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>KẾT THÚC SỚM VÒNG 2 & XEM TOP 10</span>
+                <Sparkles className="w-4 h-4" />
+              </button>
             </div>
           )}
 

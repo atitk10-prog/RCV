@@ -759,6 +759,26 @@ export default function App() {
     alert(`Đã kết thúc Vòng 1 và tự động chọn ${selectedIds.length} thí sinh xuất sắc nhất bước vào Vòng 2 theo đúng quy chế!\n\nBắt đầu Vòng 2 từ Câu ${nextQ} đến Câu ${round2Max}.`);
   };
 
+  const handleEndRound2 = () => {
+    if (!state) return;
+    if (window.confirm('Bạn có chắc chắn muốn KẾT THÚC VÒNG 2 SỚM để tổng kết Bảng xếp hạng Top 10 không?')) {
+      pushUndo(state);
+      const updatedState = { ...state, isCompleted: true, updatedAt: new Date().toISOString() };
+      saveStateToStorage(updatedState);
+      sounds.playFanfare();
+      
+      // Auto scroll to reports section to show top 10
+      setTimeout(() => {
+        const reportsPanel = document.getElementById('reports-logs-panel');
+        if (reportsPanel) {
+          reportsPanel.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 500);
+      
+      alert('Đã kết thúc cuộc thi! Vui lòng cuộn xuống Bảng xếp hạng để xem danh sách Top 10 người xuất sắc nhất.');
+    }
+  };
+
   // Start Round 2 manually
   const handleStartRound2 = () => {
     if (!state) return;
@@ -1413,6 +1433,7 @@ export default function App() {
                 onRescueLatest={handleRescueLatest}
                 onRescueCustomIds={handleRescueCustomIds}
                 onUpdateMaxQuestion={handleUpdateMaxQuestion}
+                onEndRound2={handleEndRound2}
               />
 
               {/* Roster Detailed list for editing names */}
