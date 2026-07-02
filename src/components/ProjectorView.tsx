@@ -65,6 +65,86 @@ export default function ProjectorView({ state, onClose, isSpectator = false }: P
     return state.contestants.filter(c => c.status === 'champion');
   }, [state.isCompleted, state.contestants]);
 
+  // Compute Top 10 leaderboard with SAME sorting as Admin (ReportsAndLogs)
+  const top10Leaderboard = useMemo(() => {
+    if (!state.isCompleted) return [];
+
+    const sorted = [...state.contestants].sort((a, b) => {
+      // Round 2 participants first
+      const aInR2 = a.isInRound2 ? 1 : 0;
+      const bInR2 = b.isInRound2 ? 1 : 0;
+      if (bInR2 !== aInR2) return bInR2 - aInR2;
+
+      if (a.isInRound2 && b.isInRound2) {
+        // 1. Score in Round 2 (Desc)
+        const aR2 = a.round2CorrectCount || 0;
+        const bR2 = b.round2CorrectCount || 0;
+        if (bR2 !== aR2) return bR2 - aR2;
+        // 2. Score in Round 1 (Desc)
+        const aR1 = a.round1CorrectCount || 0;
+        const bR1 = b.round1CorrectCount || 0;
+        if (bR1 !== aR1) return bR1 - aR1;
+        // 3. Status (Alive first)
+        const aAlive = a.status === 'active' || a.status === 'rescued' || a.status === 'champion' ? 1 : 0;
+        const bAlive = b.status === 'active' || b.status === 'rescued' || b.status === 'champion' ? 1 : 0;
+        if (bAlive !== aAlive) return bAlive - aAlive;
+        // 4. Eliminated later
+        const aElim = a.status === 'eliminated' ? (a.eliminatedAtQuestion || 0) : 999;
+        const bElim = b.status === 'eliminated' ? (b.eliminatedAtQuestion || 0) : 999;
+        if (bElim !== aElim) return bElim - aElim;
+        // 5. Fewer rescues
+        if ((a.rescueCount || 0) !== (b.rescueCount || 0)) return (a.rescueCount || 0) - (b.rescueCount || 0);
+        // 6. SBD
+        return a.id - b.id;
+      } else {
+        // Both not in Round 2
+        const aR1 = a.round1CorrectCount || 0;
+        const bR1 = b.round1CorrectCount || 0;
+        if (bR1 !== aR1) return bR1 - aR1;
+        const aElim = a.eliminatedAtQuestion || 0;
+        const bElim = b.eliminatedAtQuestion || 0;
+        if (bElim !== aElim) return bElim - aElim;
+        if ((a.rescueCount || 0) !== (b.rescueCount || 0)) return (a.rescueCount || 0) - (b.rescueCount || 0);
+        return a.id - b.id;
+      }
+    });
+
+    // Compute display ranks (with ties)
+    const isTied = (a: Contestant, b: Contestant) => {
+      if (!!a.isInRound2 !== !!b.isInRound2) return false;
+      if (a.isInRound2) {
+        if ((a.round2CorrectCount || 0) !== (b.round2CorrectCount || 0)) return false;
+        if ((a.round1CorrectCount || 0) !== (b.round1CorrectCount || 0)) return false;
+        const aAlive = a.status === 'active' || a.status === 'rescued' || a.status === 'champion' ? 1 : 0;
+        const bAlive = b.status === 'active' || b.status === 'rescued' || b.status === 'champion' ? 1 : 0;
+        if (aAlive !== bAlive) return false;
+        const aElim = a.status === 'eliminated' ? (a.eliminatedAtQuestion || 0) : 999;
+        const bElim = b.status === 'eliminated' ? (b.eliminatedAtQuestion || 0) : 999;
+        if (aElim !== bElim) return false;
+        if ((a.rescueCount || 0) !== (b.rescueCount || 0)) return false;
+        return true;
+      } else {
+        if ((a.round1CorrectCount || 0) !== (b.round1CorrectCount || 0)) return false;
+        if ((a.eliminatedAtQuestion || 0) !== (b.eliminatedAtQuestion || 0)) return false;
+        if ((a.rescueCount || 0) !== (b.rescueCount || 0)) return false;
+        return true;
+      }
+    };
+
+    const withRanks: (Contestant & { displayRank: number })[] = [];
+    let currentRank = 1;
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0 && !isTied(sorted[i], sorted[i-1])) {
+        currentRank = i + 1;
+      }
+      withRanks.push({ ...sorted[i], displayRank: currentRank });
+    }
+
+    // Include all contestants with displayRank <= 10 (handles ties at boundary)
+    const cutoff = withRanks.filter(c => c.displayRank <= 10);
+    return cutoff.length > 0 ? cutoff : withRanks.slice(0, 10);
+  }, [state.isCompleted, state.contestants]);
+
   // Trigger countdown ticks
   useEffect(() => {
     if (timerRunning) {
@@ -300,38 +380,103 @@ export default function ProjectorView({ state, onClose, isSpectator = false }: P
         {/* Central visual grid (Maximized for projector) */}
         <div className="lg:col-span-3 bg-slate-900/40 border border-slate-850 rounded-3xl p-5 flex flex-col justify-between shadow-lg relative min-h-[450px] backdrop-blur-lg">
           
-          {champions.length > 0 ? (
-            /* Crowning Overlay inside court */
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 via-slate-950/95 to-slate-950/98 backdrop-blur-xl rounded-3xl flex flex-col items-center justify-center text-center p-8 z-20 border border-amber-500/20 overflow-y-auto">
-              {/* Animated fireworks crown symbol */}
-              <div className="inline-flex p-5 bg-amber-500/15 border border-amber-500/25 text-amber-400 rounded-full shadow-2xl relative mb-5 animate-pulse">
-                <Trophy className="w-14 h-14 animate-bounce" />
-                <Sparkles className="absolute -top-3 -right-3 w-8 h-8 text-yellow-300 animate-spin" style={{ animationDuration: '3s' }} />
+          {state.isCompleted && champions.length > 0 ? (
+            /* Full Leaderboard Overlay when contest completed */
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-950/98 via-slate-950/95 to-amber-950/10 backdrop-blur-xl rounded-3xl flex flex-col p-6 z-20 border border-amber-500/20 overflow-y-auto">
+              {/* Champion Banner */}
+              <div className="text-center mb-4 pb-4 border-b border-amber-500/20">
+                <div className="inline-flex p-3 bg-amber-500/15 border border-amber-500/25 text-amber-400 rounded-full shadow-2xl relative mb-3 animate-pulse">
+                  <Trophy className="w-10 h-10 animate-bounce" />
+                  <Sparkles className="absolute -top-2 -right-2 w-6 h-6 text-yellow-300 animate-spin" style={{ animationDuration: '3s' }} />
+                </div>
+                <h2 className="text-yellow-400 font-black text-xs uppercase tracking-widest mb-2">
+                  🏆 QUÁN QUÂN XUẤT SẮC 🏆
+                </h2>
+                <div className="flex flex-wrap justify-center gap-3">
+                  {champions.map((champ) => (
+                    <div key={champ.id} className="bg-slate-900/80 border border-amber-500/30 px-5 py-3 rounded-xl shadow-lg">
+                      <div className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-500 leading-tight">
+                        {champ.name}
+                      </div>
+                      <div className="text-[10px] font-mono font-bold text-amber-400/70 mt-0.5">
+                        SBD: {`0${champ.id}`.slice(-2)} · V1: {champ.round1CorrectCount || 0} · V2: {champ.round2CorrectCount || 0} · Tổng: {champ.correctAnswersCount || 0}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <h2 className="text-yellow-400 font-black text-xs uppercase tracking-widest">
-                🏆 QUÁN QUÂN XUẤT SẮC 🏆
-              </h2>
-              
-              <div className="space-y-2.5 mt-3 w-full">
-                {champions.map((champ) => (
-                  <div key={champ.id} className="bg-slate-955/80 border border-amber-500/20 p-5 rounded-2xl max-w-lg mx-auto shadow-2xl">
-                    <div className="text-[10px] font-mono font-bold text-amber-400 mb-0.5 tracking-wider uppercase">
-                      SỐ BÁO DANH: {`0${champ.id}`.slice(-2)}
-                    </div>
-                    <div className="text-3xl font-black tracking-tight text-white line-clamp-1">
-                      {champ.name}
-                    </div>
-                    <div className="text-xs text-slate-400 mt-2 leading-relaxed">
-                      Vượt qua xuất sắc cuộc thi với thành tích vượt trội {champ.correctAnswersCount} câu trả lời đúng!
-                    </div>
-                  </div>
-                ))}
+              {/* Top 10 Leaderboard Table */}
+              <div className="flex-1 overflow-y-auto">
+                <h3 className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5" />
+                  BẢNG XẾP HẠNG TOP 10 - VÒNG 2
+                </h3>
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-950/80 text-[9px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-800">
+                      <th className="py-2 px-2 text-center w-8">STT</th>
+                      <th className="py-2 px-2 text-center w-10">Hạng</th>
+                      <th className="py-2 px-2 text-center w-12">SBD</th>
+                      <th className="py-2 px-3">Thí Sinh</th>
+                      <th className="py-2 px-2 text-center w-16">V1</th>
+                      <th className="py-2 px-2 text-center w-16 text-amber-400">V2</th>
+                      <th className="py-2 px-2 text-center w-16">Tổng</th>
+                      <th className="py-2 px-2 text-center w-20">Trạng Thái</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-850">
+                    {top10Leaderboard.map((c, idx) => {
+                      const isTop10 = c.displayRank <= 10;
+                      let statusText = 'Đang thi';
+                      let statusClass = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+                      if (c.status === 'champion') {
+                        statusText = '🏆 Quán quân';
+                        statusClass = 'text-amber-400 bg-amber-500/15 border-amber-500/30 font-black';
+                      } else if (c.status === 'eliminated') {
+                        statusText = 'Bị loại';
+                        statusClass = 'text-slate-500 bg-slate-900 border-slate-800';
+                      } else if (c.status === 'rescued') {
+                        statusText = 'Được cứu';
+                        statusClass = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+                      }
+                      return (
+                        <tr 
+                          key={c.id}
+                          className={`text-xs transition-all ${
+                            c.status === 'champion'
+                              ? 'bg-amber-500/10 font-bold'
+                              : isTop10
+                                ? 'bg-emerald-500/5 border-l-2 border-emerald-500/30'
+                                : ''
+                          }`}
+                        >
+                          <td className="py-2 px-2 text-center text-[10px] text-slate-500 font-mono">{idx + 1}</td>
+                          <td className="py-2 px-2 text-center font-bold">
+                            {c.displayRank <= 3 ? (
+                              <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-extrabold ${
+                                c.displayRank === 1 ? 'bg-amber-500 text-slate-950' :
+                                c.displayRank === 2 ? 'bg-slate-400 text-slate-950' :
+                                'bg-amber-800 text-white'
+                              }`}>{c.displayRank}</span>
+                            ) : (
+                              <span className={isTop10 ? 'text-emerald-400 font-bold' : 'text-slate-500'}>{c.displayRank}</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-2 text-center font-mono font-bold text-slate-300">{`0${c.id}`.slice(-2)}</td>
+                          <td className="py-2 px-3 font-semibold text-slate-200">{c.name}</td>
+                          <td className="py-2 px-2 text-center font-mono text-slate-400">{c.round1CorrectCount || 0}</td>
+                          <td className="py-2 px-2 text-center font-mono font-bold text-amber-400">{c.round2CorrectCount || 0}</td>
+                          <td className="py-2 px-2 text-center font-mono font-bold text-slate-200">{c.correctAnswersCount || 0}</td>
+                          <td className="py-2 px-2 text-center">
+                            <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${statusClass}`}>{statusText}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-
-              <p className="text-xs text-amber-200/60 mt-6 leading-relaxed max-w-md">
-                Xin chúc mừng các bạn học sinh đã kiên cường vượt qua các câu hỏi hóc búa để rung vang chiếc Chuông Vàng danh giá!
-              </p>
             </div>
           ) : null}
 

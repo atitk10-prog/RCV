@@ -385,6 +385,7 @@ export default function ReportsAndLogs({ state, onSaveHistory, onSetContestants 
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-950/60 text-[9px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-850">
+              <th className="py-2.5 px-2 text-center w-10">STT</th>
               <th className="py-2.5 px-3 text-center w-12">Hạng</th>
               <th className="py-2.5 px-3 text-center w-16">SBD</th>
               <th className="py-2.5 px-3">Thí Sinh</th>
@@ -442,6 +443,10 @@ export default function ReportsAndLogs({ state, onSaveHistory, onSetContestants 
                         : 'hover:bg-slate-950/20'
                   }`}
                 >
+                  {/* STT (sequential number) */}
+                  <td className="py-2.5 px-2 text-center text-[10px] text-slate-500 font-mono">
+                    {idx + 1}
+                  </td>
                   {/* Rank index */}
                   <td className="py-2.5 px-3 text-center font-bold">
                     {rank <= 3 ? (
