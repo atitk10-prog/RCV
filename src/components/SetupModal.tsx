@@ -532,7 +532,7 @@ export default function SetupModal({
                 </div>
               ))}
             </div>
-          ) : (
+          ) : activeTab === 'spectator' ? (
             /* Spectator Tab Content */
             <div className="space-y-5">
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-widest">
