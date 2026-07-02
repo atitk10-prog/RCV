@@ -9,6 +9,14 @@ import {
 } from '../lib/firebase';
 import { ContestState } from '../types';
 
+interface SyncQueueItem {
+  id: number;
+  type: 'append' | 'update';
+  range: string;
+  values: any[][];
+  status: 'pending' | 'failed';
+}
+
 interface GoogleSheetsSyncPanelProps {
   state: ContestState;
   onStateUpdate: (newState: ContestState) => void;
@@ -47,6 +55,43 @@ export default function GoogleSheetsSyncPanel({
     return localStorage.getItem(`rungchuongvang_live_sync_${state.id}`) === 'true';
   });
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
+
+  // Sync Queue State
+  const [syncQueue, setSyncQueue] = useState<SyncQueueItem[]>(() => {
+    try {
+      const q = localStorage.getItem(`rungchuongvang_sync_queue_${state.id}`);
+      return q ? JSON.parse(q) : [];
+    } catch { return []; }
+  });
+
+  // Sync queue to local storage
+  useEffect(() => {
+    localStorage.setItem(`rungchuongvang_sync_queue_${state.id}`, JSON.stringify(syncQueue));
+  }, [syncQueue, state.id]);
+
+  // Background processor for the queue
+  useEffect(() => {
+    const processQueue = async () => {
+      if (!token || !spreadsheetId || syncQueue.length === 0) return;
+      
+      const item = syncQueue[0];
+      try {
+        if (item.type === 'append') {
+          await appendSheetRow(spreadsheetId, item.range, item.values, token);
+        } else if (item.type === 'update') {
+          await updateSheetValues(spreadsheetId, item.range, item.values, token);
+        }
+        
+        // Remove item on success
+        setSyncQueue(prev => prev.filter(q => q.id !== item.id));
+      } catch (err) {
+        console.error('Lỗi đồng bộ ngầm, sẽ thử lại sau:', err);
+      }
+    };
+
+    const interval = setInterval(processQueue, 10000); // Check every 10 seconds
+    return () => clearInterval(interval);
+  }, [syncQueue, token, spreadsheetId]);
 
   // Sync spreadsheetId from parent state if available
   useEffect(() => {
@@ -92,7 +137,7 @@ export default function GoogleSheetsSyncPanel({
   useEffect(() => {
     if (autoSave && token && spreadsheetId) {
       const timer = setTimeout(() => {
-        handleSyncRankingsToSheet();
+        handleEnqueueRankingsSync();
       }, 3000); // 3 seconds debounce
 
       return () => clearTimeout(timer);
@@ -211,11 +256,18 @@ export default function GoogleSheetsSyncPanel({
         rescuedInThisQ.length > 0 ? rescuedInThisQ.join(', ') : 'Không có'
       ];
 
-      // Append row to Google Sheets
-      await appendSheetRow(spreadsheetId, 'Nhật Ký Câu Hỏi!A2', [logRow], token);
+      // Enqueue append task
+      const appendItem: SyncQueueItem = {
+        id: Date.now(),
+        type: 'append',
+        range: 'Nhật Ký Câu Hỏi!A2',
+        values: [logRow],
+        status: 'pending'
+      };
+      setSyncQueue(prev => [...prev, appendItem]);
 
-      // Refresh final standings as well
-      await handleSyncRankingsToSheet();
+      // Enqueue ranking refresh as well
+      handleEnqueueRankingsSync();
 
       // Mark question as saved
       const updatedSaved = { ...savedQuestions, [state.currentQuestion]: true };
@@ -228,7 +280,7 @@ export default function GoogleSheetsSyncPanel({
     }
   };
 
-  const handleSyncRankingsToSheet = async () => {
+  const handleEnqueueRankingsSync = () => {
     if (!token || !spreadsheetId) return;
     
     // Sort contestants by status, scores, etc. for ranking
@@ -278,11 +330,19 @@ export default function GoogleSheetsSyncPanel({
       ];
     });
 
-    try {
-      await updateSheetValues(spreadsheetId, 'Xếp Hạng Thí Sinh!A2:I500', rows, token);
-    } catch (err) {
-      console.error('Lỗi đồng bộ bảng xếp hạng thí sinh:', err);
-    }
+    const updateItem: SyncQueueItem = {
+      id: Date.now() + 1,
+      type: 'update',
+      range: 'Xếp Hạng Thí Sinh!A2:I500',
+      values: rows,
+      status: 'pending'
+    };
+
+    // Replace existing pending ranking updates to avoid redundant requests
+    setSyncQueue(prev => {
+      const filtered = prev.filter(q => q.type !== 'update');
+      return [...filtered, updateItem];
+    });
   };
 
   const handleToggleAutoSave = () => {
@@ -371,6 +431,16 @@ export default function GoogleSheetsSyncPanel({
                   />
                 </label>
               </div>
+
+              {/* Queue Status Badge */}
+              {syncQueue.length > 0 && (
+                <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-rose-500/10 border border-rose-500/20 rounded-lg animate-pulse">
+                  <RefreshCw className="w-3.5 h-3.5 text-rose-400 animate-spin" />
+                  <span className="text-[10px] text-rose-400 font-bold uppercase tracking-wider">
+                    Đang lưu đệm {syncQueue.length} tác vụ (Chờ mạng ổn định)
+                  </span>
+                </div>
+              )}
 
               {/* Current Question Save Status */}
               <div className="pt-2 border-t border-slate-800 flex flex-col gap-2">
