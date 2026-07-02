@@ -51,31 +51,60 @@ export default function SpectatorDashboard({ state, onExit, onSwitchToProjector 
     return matchesSearch;
   });
 
-  // Calculate sorted rankings
+  // Calculate sorted rankings - SAME algorithm as Admin (ReportsAndLogs)
+  const isRound2 = state.currentRound === 2;
   const sortedRankings = [...state.contestants].sort((a, b) => {
-    const statusScore = (c: any) => {
-      if (c.status === 'champion') return 4;
-      if (c.status === 'active' || c.status === 'rescued') return 3;
-      return 1;
-    };
+    if (isRound2) {
+      // Round 2 participants first
+      const aInR2 = a.isInRound2 ? 1 : 0;
+      const bInR2 = b.isInRound2 ? 1 : 0;
+      if (bInR2 !== aInR2) return bInR2 - aInR2;
 
-    if (statusScore(b) !== statusScore(a)) {
-      return statusScore(b) - statusScore(a);
+      if (a.isInRound2 && b.isInRound2) {
+        // 1. Score in Round 2 (Desc)
+        const aR2 = a.round2CorrectCount || 0;
+        const bR2 = b.round2CorrectCount || 0;
+        if (bR2 !== aR2) return bR2 - aR2;
+        // 2. Score in Round 1 (Desc)
+        const aR1 = a.round1CorrectCount || 0;
+        const bR1 = b.round1CorrectCount || 0;
+        if (bR1 !== aR1) return bR1 - aR1;
+        // 3. Status (Alive first)
+        const aAlive = a.status === 'active' || a.status === 'rescued' || a.status === 'champion' ? 1 : 0;
+        const bAlive = b.status === 'active' || b.status === 'rescued' || b.status === 'champion' ? 1 : 0;
+        if (bAlive !== aAlive) return bAlive - aAlive;
+        // 4. Eliminated later
+        const aElim = a.status === 'eliminated' ? (a.eliminatedAtQuestion || 0) : 999;
+        const bElim = b.status === 'eliminated' ? (b.eliminatedAtQuestion || 0) : 999;
+        if (bElim !== aElim) return bElim - aElim;
+        // 5. Fewer rescues
+        if ((a.rescueCount || 0) !== (b.rescueCount || 0)) return (a.rescueCount || 0) - (b.rescueCount || 0);
+        return a.id - b.id;
+      } else {
+        // Both not in Round 2
+        const aR1 = a.round1CorrectCount || 0;
+        const bR1 = b.round1CorrectCount || 0;
+        if (bR1 !== aR1) return bR1 - aR1;
+        const aElim = a.eliminatedAtQuestion || 0;
+        const bElim = b.eliminatedAtQuestion || 0;
+        if (bElim !== aElim) return bElim - aElim;
+        if ((a.rescueCount || 0) !== (b.rescueCount || 0)) return (a.rescueCount || 0) - (b.rescueCount || 0);
+        return a.id - b.id;
+      }
+    } else {
+      // Round 1 sorting
+      const aR1 = a.round1CorrectCount || 0;
+      const bR1 = b.round1CorrectCount || 0;
+      if (bR1 !== aR1) return bR1 - aR1;
+      const aAlive = a.status === 'active' || a.status === 'rescued' || a.status === 'champion' ? 1 : 0;
+      const bAlive = b.status === 'active' || b.status === 'rescued' || b.status === 'champion' ? 1 : 0;
+      if (bAlive !== aAlive) return bAlive - aAlive;
+      const aElim = a.status === 'eliminated' ? (a.eliminatedAtQuestion || 0) : 999;
+      const bElim = b.status === 'eliminated' ? (b.eliminatedAtQuestion || 0) : 999;
+      if (bElim !== aElim) return bElim - aElim;
+      if ((a.rescueCount || 0) !== (b.rescueCount || 0)) return (a.rescueCount || 0) - (b.rescueCount || 0);
+      return a.id - b.id;
     }
-
-    const aTotal = (a.round1CorrectCount || 0) + (a.round2CorrectCount || 0);
-    const bTotal = (b.round1CorrectCount || 0) + (b.round2CorrectCount || 0);
-    if (bTotal !== aTotal) {
-      return bTotal - aTotal;
-    }
-
-    const aElim = a.status === 'eliminated' ? (a.eliminatedAtQuestion || 0) : 999;
-    const bElim = b.status === 'eliminated' ? (b.eliminatedAtQuestion || 0) : 999;
-    if (bElim !== aElim) {
-      return bElim - aElim;
-    }
-
-    return a.id - b.id;
   });
 
   const getStatusVisuals = (contestant: Contestant) => {
@@ -284,8 +313,20 @@ export default function SpectatorDashboard({ state, onExit, onSwitchToProjector 
 
                     {/* Score badge */}
                     <div className="text-right">
-                      <span className="text-[10px] text-slate-400 block font-medium">Đúng</span>
-                      <span className="text-sm font-mono font-black text-slate-200">{totalCorrect} câu</span>
+                      {isRound2 ? (
+                        <>
+                          <div className="flex items-center gap-2 justify-end">
+                            <span className="text-[9px] text-slate-500 font-bold">V1:<span className="text-slate-300 ml-0.5">{c.round1CorrectCount || 0}</span></span>
+                            <span className="text-[9px] text-amber-400 font-bold">V2:<span className="text-amber-300 ml-0.5">{c.round2CorrectCount || 0}</span></span>
+                          </div>
+                          <span className="text-sm font-mono font-black text-slate-200">{totalCorrect} câu</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-[10px] text-slate-400 block font-medium">Đúng</span>
+                          <span className="text-sm font-mono font-black text-slate-200">{totalCorrect} câu</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
