@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Trophy, HelpCircle, Activity, Play, Square, RotateCcw, 
   Volume2, VolumeX, Maximize2, Tv, RefreshCw, Sparkles, Award
 } from 'lucide-react';
 import { ContestState, Contestant } from '../types';
 import { sounds } from './SoundEffects';
+import ChampionCelebration from './ChampionCelebration';
 
 const getGridColsClass = (cols: number) => {
   const lgMap: Record<number, string> = {
@@ -36,8 +37,9 @@ export default function ProjectorView({ state, onClose, isSpectator = false }: P
   const [timerSeconds, setTimerSeconds] = useState(15);
   const [timeLeft, setTimeLeft] = useState(15);
   const [timerRunning, setTimerRunning] = useState(false);
-  const [timerPreset, setTimerPreset] = useState(15);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [timerPreset, setTimerPreset] = useState<number>(15); // Default 15s
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [hideCelebration, setHideCelebration] = useState<boolean>(false);
   const [hideRescueOverlay, setHideRescueOverlay] = useState(false);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -56,7 +58,12 @@ export default function ProjectorView({ state, onClose, isSpectator = false }: P
   );
   
   const eliminatedCount = displayedContestants.filter((c) => c.status === 'eliminated').length;
-  const champions = displayedContestants.filter((c) => c.status === 'champion');
+  
+  // Compute champions
+  const champions = useMemo(() => {
+    if (!state.isCompleted) return [];
+    return state.contestants.filter(c => c.status === 'champion');
+  }, [state.isCompleted, state.contestants]);
 
   // Trigger countdown ticks
   useEffect(() => {
@@ -428,6 +435,13 @@ export default function ProjectorView({ state, onClose, isSpectator = false }: P
           
         </div>
       </div>
+
+      {state.isCompleted && champions.length > 0 && !hideCelebration && (
+        <ChampionCelebration 
+          champions={champions}
+          onClose={() => setHideCelebration(true)} 
+        />
+      )}
     </div>
   );
 }

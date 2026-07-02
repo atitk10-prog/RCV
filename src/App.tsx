@@ -17,6 +17,7 @@ import StatsBanner from './components/StatsBanner';
 import ContestantGrid from './components/ContestantGrid';
 import AdminControls from './components/AdminControls';
 import ReportsAndLogs from './components/ReportsAndLogs';
+import ChampionCelebration from './components/ChampionCelebration';
 import ProjectorView from './components/ProjectorView';
 import GoogleSheetsSyncPanel from './components/GoogleSheetsSyncPanel';
 import { listenToFirestoreSession } from './lib/firebase';
@@ -29,6 +30,8 @@ export default function App() {
   const [rescueMode, setRescueMode] = useState<boolean>(false);
   const [selectedRescueIds, setSelectedRescueIds] = useState<number[]>([]);
   const [undoStack, setUndoStack] = useState<ContestState[]>([]);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [championsList, setChampionsList] = useState<Contestant[]>([]);
   const [showProjector, setShowProjector] = useState<boolean>(false);
   const [editingContestant, setEditingContestant] = useState<Contestant | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
@@ -761,10 +764,62 @@ export default function App() {
 
   const handleEndRound2 = () => {
     if (!state) return;
-    if (window.confirm('Bạn có chắc chắn muốn KẾT THÚC VÒNG 2 SỚM để tổng kết Bảng xếp hạng Top 10 không?')) {
+    if (window.confirm('Bạn có chắc chắn muốn KẾT THÚC VÒNG 2 SỚM để tổng kết Bảng xếp hạng Top 10 không?\n\nLưu ý: Khi đã kết thúc, sẽ KHÔNG THỂ thay đổi hay sửa chữa bất kỳ kết quả nào trên sân đấu nữa!')) {
       pushUndo(state);
-      const updatedState = { ...state, isCompleted: true, updatedAt: new Date().toISOString() };
+
+      // Tính toán danh sách Quán Quân (Top 1 và những người đồng hạng 1)
+      const sorted = [...state.contestants].sort((a, b) => {
+        const aInR2 = a.isInRound2 ? 1 : 0;
+        const bInR2 = b.isInRound2 ? 1 : 0;
+        if (bInR2 !== aInR2) return bInR2 - aInR2;
+        const aR2Score = a.round2CorrectCount || 0;
+        const bR2Score = b.round2CorrectCount || 0;
+        if (bR2Score !== aR2Score) return bR2Score - aR2Score;
+        const aR1Score = a.round1CorrectCount || 0;
+        const bR1Score = b.round1CorrectCount || 0;
+        if (bR1Score !== aR1Score) return bR1Score - aR1Score;
+        const aAlive = a.status === 'active' || a.status === 'rescued' || a.status === 'champion' ? 1 : 0;
+        const bAlive = b.status === 'active' || b.status === 'rescued' || b.status === 'champion' ? 1 : 0;
+        if (bAlive !== aAlive) return bAlive - aAlive;
+        const aElim = a.status === 'eliminated' ? (a.eliminatedAtQuestion || 0) : 999;
+        const bElim = b.status === 'eliminated' ? (b.eliminatedAtQuestion || 0) : 999;
+        if (bElim !== aElim) return bElim - aElim;
+        const aRescue = a.rescueCount || 0;
+        const bRescue = b.rescueCount || 0;
+        if (aRescue !== bRescue) return aRescue - bRescue;
+        return a.id - b.id;
+      });
+
+      const first = sorted[0];
+      const champions = sorted.filter((c) => {
+        if (c.isInRound2 !== first.isInRound2) return false;
+        if (c.round2CorrectCount !== first.round2CorrectCount) return false;
+        if (c.round1CorrectCount !== first.round1CorrectCount) return false;
+        const cAlive = c.status === 'active' || c.status === 'rescued' || c.status === 'champion' ? 1 : 0;
+        const firstAlive = first.status === 'active' || first.status === 'rescued' || first.status === 'champion' ? 1 : 0;
+        if (cAlive !== firstAlive) return false;
+        const cElim = c.status === 'eliminated' ? (c.eliminatedAtQuestion || 0) : 999;
+        const firstElim = first.status === 'eliminated' ? (first.eliminatedAtQuestion || 0) : 999;
+        if (cElim !== firstElim) return false;
+        if ((c.rescueCount || 0) !== (first.rescueCount || 0)) return false;
+        return true;
+      });
+
+      const championIds = champions.map(c => c.id);
+      const updatedContestants = state.contestants.map(c => 
+        championIds.includes(c.id) ? { ...c, status: 'champion' as const } : c
+      );
+
+      const updatedState = { 
+        ...state, 
+        contestants: updatedContestants,
+        isCompleted: true, 
+        updatedAt: new Date().toISOString() 
+      };
       saveStateToStorage(updatedState);
+      
+      setChampionsList(champions);
+      setShowCelebration(true);
       sounds.playFanfare();
       
       // Auto scroll to reports section to show top 10
@@ -774,8 +829,6 @@ export default function App() {
           reportsPanel.scrollIntoView({ behavior: 'smooth' });
         }
       }, 500);
-      
-      alert('Đã kết thúc cuộc thi! Vui lòng cuộn xuống Bảng xếp hạng để xem danh sách Top 10 người xuất sắc nhất.');
     }
   };
 
@@ -1608,6 +1661,14 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Champion Celebration Modal */}
+      {showCelebration && (
+        <ChampionCelebration 
+          champions={championsList} 
+          onClose={() => setShowCelebration(false)} 
+        />
       )}
 
     </div>
