@@ -1,0 +1,6 @@
+{
+  "name": "Quản lý cuộc thi Rung Chuông Vàng",
+  "description": "Hệ thống quản lý cuộc thi Rung Chuông Vàng trực quan, hỗ trợ theo dõi thí sinh, cứu trợ, quản lý câu hỏi, tự động xếp hạng và xuất kết quả.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
