@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { Trophy, Users, Award, Play, History, Trash2, FileSpreadsheet, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Trophy, Users, Award, Play, History, Trash2, FileSpreadsheet, X, Tv, Wifi } from 'lucide-react';
 import { ContestState, SavedContestSummary } from '../types';
 
 interface SetupModalProps {
@@ -22,9 +22,21 @@ interface SetupModalProps {
   onLoadHistory: (id: string) => void;
   onDeleteHistory: (id: string) => void;
   onResume?: () => void;
+  onConnectSpectator?: (roomId: string) => void;
+  isSpectatorOnly?: boolean;
+  onAdminLogout?: () => void;
 }
 
-export default function SetupModal({ onStart, savedSummaries, onLoadHistory, onDeleteHistory, onResume }: SetupModalProps) {
+export default function SetupModal({ 
+  onStart, 
+  savedSummaries, 
+  onLoadHistory, 
+  onDeleteHistory, 
+  onResume,
+  onConnectSpectator,
+  isSpectatorOnly = false,
+  onAdminLogout
+}: SetupModalProps) {
   const [name, setName] = useState('Cuộc thi Rung Chuông Vàng 2026');
   const [organizer, setOrganizer] = useState('Ban Chấp Hành Đoàn Trường / Đơn vị');
   const [totalContestants, setTotalContestants] = useState(64);
@@ -33,8 +45,23 @@ export default function SetupModal({ onStart, savedSummaries, onLoadHistory, onD
   const [round2MaxQuestion, setRound2MaxQuestion] = useState(30);
   const [colsPerRow, setColsPerRow] = useState(10);
   const [namesText, setNamesText] = useState('');
-  const [activeTab, setActiveTab] = useState<'new' | 'history'>('new');
+  const [activeTab, setActiveTab] = useState<'new' | 'history' | 'spectator'>(isSpectatorOnly ? 'spectator' : 'new');
+  const [spectatorRoomId, setSpectatorRoomId] = useState('');
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+  // Auto-detect spectator room in query param on mount
+  useEffect(() => {
+    if (isSpectatorOnly) {
+      setActiveTab('spectator');
+    } else {
+      const params = new URLSearchParams(window.location.search);
+      const roomParam = params.get('room');
+      if (roomParam) {
+        setSpectatorRoomId(roomParam);
+        setActiveTab('spectator');
+      }
+    }
+  }, [isSpectatorOnly]);
 
   const [activeSession, setActiveSession] = useState<any>(() => {
     const saved = localStorage.getItem('rungchuongvang_current_session');
@@ -118,8 +145,19 @@ export default function SetupModal({ onStart, savedSummaries, onLoadHistory, onD
         </div>
 
         {/* Form Area */}
-        <div className="flex-1 p-8 md:p-10 select-none">
-          {activeSession && onResume && (
+        <div className="flex-1 p-8 md:p-10 select-none relative pt-14">
+          {/* Admin Back/Logout action */}
+          <div className="absolute top-4 right-4 z-10">
+            <button
+              type="button"
+              onClick={onAdminLogout}
+              className="px-3 py-1.5 bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 text-xxs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+            >
+              <span>{isSpectatorOnly ? '🚪 Đăng nhập Admin' : '🚪 Đăng xuất'}</span>
+            </button>
+          </div>
+
+          {activeSession && onResume && !isSpectatorOnly && (
             <div className="mb-6 p-4 bg-gradient-to-r from-amber-500/10 to-yellow-500/5 border border-amber-500/20 rounded-xl space-y-3.5 shadow-lg shadow-amber-500/5">
               <div className="flex justify-between items-start">
                 <div>
@@ -155,31 +193,61 @@ export default function SetupModal({ onStart, savedSummaries, onLoadHistory, onD
           )}
 
           {/* Navigation Tab */}
-          <div className="flex border-b border-slate-800 mb-8">
+          <div className="flex border-b border-slate-800 mb-8 overflow-x-auto whitespace-nowrap scrollbar-none gap-6">
             <button
               id="tab-new-contest"
-              onClick={() => setActiveTab('new')}
-              className={`pb-3 text-sm font-semibold border-b-2 mr-6 transition-all ${
+              type="button"
+              onClick={() => {
+                if (isSpectatorOnly) {
+                  if (onAdminLogout) onAdminLogout();
+                } else {
+                  setActiveTab('new');
+                }
+              }}
+              className={`pb-3 text-sm font-semibold border-b-2 mr-6 transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'new'
                   ? 'border-amber-500 text-amber-400'
                   : 'border-transparent text-slate-400 hover:text-slate-200'
               }`}
             >
-              Thiết lập Cuộc thi Mới
+              {isSpectatorOnly && <span className="text-xs text-slate-500">🔒</span>}
+              <span>Thiết lập Cuộc thi Mới</span>
             </button>
             <button
               id="tab-history-contest"
-              disabled={savedSummaries.length === 0}
-              onClick={() => setActiveTab('history')}
-              className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center ${
-                savedSummaries.length === 0
+              type="button"
+              disabled={!isSpectatorOnly && savedSummaries.length === 0}
+              onClick={() => {
+                if (isSpectatorOnly) {
+                  if (onAdminLogout) onAdminLogout();
+                } else {
+                  setActiveTab('history');
+                }
+              }}
+              className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+                !isSpectatorOnly && savedSummaries.length === 0
                   ? 'opacity-30 cursor-not-allowed text-slate-600'
                   : activeTab === 'history'
                   ? 'border-amber-500 text-amber-400'
                   : 'border-transparent text-slate-400 hover:text-slate-200'
               }`}
             >
-              Lịch sử Cuộc thi ({savedSummaries.length})
+              {isSpectatorOnly && <span className="text-xs text-slate-500">🔒</span>}
+              <span>Lịch sử Cuộc thi {!isSpectatorOnly ? `(${savedSummaries.length})` : ''}</span>
+            </button>
+            <button
+              id="tab-spectator-contest"
+              type="button"
+              onClick={() => setActiveTab('spectator')}
+              className={`pb-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'spectator'
+                  ? 'border-emerald-500 text-emerald-400'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Tv className="w-4 h-4 text-emerald-400" />
+              <span>Khách xem Realtime</span>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
             </button>
           </div>
 
@@ -373,7 +441,7 @@ export default function SetupModal({ onStart, savedSummaries, onLoadHistory, onD
                 Khởi tạo & Bắt đầu Cuộc thi
               </button>
             </form>
-          ) : (
+          ) : activeTab === 'history' ? (
             <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">
                 <History className="w-4 h-4 text-slate-500" />
@@ -424,6 +492,50 @@ export default function SetupModal({ onStart, savedSummaries, onLoadHistory, onD
                   </div>
                 </div>
               ))}
+            </div>
+          ) : (
+            /* Spectator Tab Content */
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-widest">
+                <Tv className="w-4 h-4 text-emerald-400" />
+                <span>Kết nối xem trực tiếp qua Website</span>
+              </div>
+              
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Nhập <strong>Mã phòng thi đấu</strong> được chia sẻ bởi Ban Tổ Chức (Host) để theo dõi tiến trình cuộc thi, đếm ngược thời gian, trạng thái loại và điểm số của tất cả các thí sinh theo thời gian thực.
+              </p>
+
+              <div className="space-y-4 bg-slate-950/40 p-5 rounded-xl border border-slate-805">
+                <div className="space-y-1.5">
+                  <label htmlFor="spectator-room-id" className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Mã phòng thi đấu (Session ID)
+                  </label>
+                  <input
+                    id="spectator-room-id"
+                    type="text"
+                    required
+                    value={spectatorRoomId}
+                    onChange={(e) => setSpectatorRoomId(e.target.value.trim())}
+                    placeholder="Ví dụ: contest_1720000000000"
+                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-lg text-sm font-mono text-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all uppercase placeholder-slate-700 font-bold"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  id="btn-connect-spectator"
+                  disabled={!spectatorRoomId}
+                  onClick={() => {
+                    if (onConnectSpectator) {
+                      onConnectSpectator(spectatorRoomId);
+                    }
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 disabled:opacity-50 text-slate-950 font-black text-sm rounded-xl transition-all shadow-lg shadow-emerald-500/10 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Wifi className="w-4 h-4 text-slate-950" />
+                  KẾT NỐI XEM REALTIME
+                </button>
+              </div>
             </div>
           )}
         </div>

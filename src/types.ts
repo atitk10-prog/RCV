@@ -34,6 +34,8 @@ export interface ContestState {
   createdAt: string;
   updatedAt: string;
   colsPerRow?: number; // Tùy chỉnh số lượng cột mỗi hàng
+  spreadsheetId?: string;
+  spreadsheetUrl?: string;
 }
 
 export interface SavedContestSummary {

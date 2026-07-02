@@ -28,9 +28,10 @@ const getGridColsClass = (cols: number) => {
 interface ProjectorViewProps {
   state: ContestState;
   onClose: () => void;
+  isSpectator?: boolean;
 }
 
-export default function ProjectorView({ state, onClose }: ProjectorViewProps) {
+export default function ProjectorView({ state, onClose, isSpectator = false }: ProjectorViewProps) {
   // Countdown Timer states
   const [timerSeconds, setTimerSeconds] = useState(15);
   const [timeLeft, setTimeLeft] = useState(15);
@@ -129,9 +130,17 @@ export default function ProjectorView({ state, onClose }: ProjectorViewProps) {
             <Trophy className="w-8 h-8" />
           </div>
           <div className="text-center md:text-left">
-            <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest bg-amber-500/10 px-3 py-0.5 rounded-full border border-amber-500/25">
-              Sân Đấu Dự Khán
-            </span>
+            <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start">
+              <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest bg-amber-500/10 px-3 py-0.5 rounded-full border border-amber-500/25">
+                {isSpectator ? 'Khán Giả Trực Tuyến' : 'Sân Đấu Dự Khán'}
+              </span>
+              {isSpectator && (
+                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-3 py-0.5 rounded-full border border-emerald-500/25 flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>TRỰC TIẾP REALTIME</span>
+                </span>
+              )}
+            </div>
             <h1 className="text-2xl font-black mt-1.5 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-500 uppercase tracking-tight drop-shadow">
               {state.name}
             </h1>
@@ -221,7 +230,7 @@ export default function ProjectorView({ state, onClose }: ProjectorViewProps) {
           onClick={onClose}
           className="px-4 py-2 bg-slate-900/60 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-md"
         >
-          Trở về Bàn Admin
+          {isSpectator ? 'Trở về Trang chủ' : 'Trở về Bàn Admin'}
         </button>
       </div>
 

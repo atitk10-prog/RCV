@@ -1,0 +1,35 @@
+{
+  "entities": {
+    "ContestSession": {
+      "title": "ContestSession",
+      "description": "A live contest session shared real-time",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique session identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Session or contest name"
+        },
+        "stateJson": {
+          "type": "string",
+          "description": "Serialized ContestState JSON string for real-time synchronization"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last updated timestamp"
+        }
+      },
+      "required": ["id", "name", "stateJson", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/sessions/{sessionId}": {
+      "schema": "ContestSession",
+      "description": "Real-time sync coordinates for the ringing bell contest"
+    }
+  }
+}

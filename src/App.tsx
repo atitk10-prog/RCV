@@ -18,6 +18,10 @@ import ContestantGrid from './components/ContestantGrid';
 import AdminControls from './components/AdminControls';
 import ReportsAndLogs from './components/ReportsAndLogs';
 import ProjectorView from './components/ProjectorView';
+import GoogleSheetsSyncPanel from './components/GoogleSheetsSyncPanel';
+import { listenToFirestoreSession } from './lib/firebase';
+import AdminLogin from './components/AdminLogin';
+import SpectatorDashboard from './components/SpectatorDashboard';
 
 export default function App() {
   const [state, setState] = useState<ContestState | null>(null);
@@ -31,19 +35,99 @@ export default function App() {
   const [showConfirmBack, setShowConfirmBack] = useState<boolean>(false);
   const [alertConfig, setAlertConfig] = useState<{ message: string; title?: string } | null>(null);
 
+  // Admin authentication states
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem('rungchuongvang_is_authenticated') === 'true';
+  });
+  const [isSpectatorSetupMode, setIsSpectatorSetupMode] = useState<boolean>(false);
+  const [newAdminUser, setNewAdminUser] = useState<string>('');
+  const [newAdminPass, setNewAdminPass] = useState<string>('');
+
+  // Spectator and Google Sheet States
+  const [isSpectatorMode, setIsSpectatorMode] = useState<boolean>(false);
+  const [spectatorRoomId, setSpectatorRoomId] = useState<string>('');
+  const [spectatorViewType, setSpectatorViewType] = useState<'dashboard' | 'projector'>('dashboard');
+  const [savedQuestions, setSavedQuestions] = useState<Record<number, boolean>>({});
+
   // Load state and history list on component mount
   useEffect(() => {
-    const savedState = localStorage.getItem('rungchuongvang_current_session');
-    if (savedState) {
-      try {
-        setState(JSON.parse(savedState));
-      } catch (err) {
-        console.error('Không thể khôi phục phiên hoạt động cũ:', err);
+    // Check if URL has spectator room query param
+    const params = new URLSearchParams(window.location.search);
+    const roomParam = params.get('room');
+    if (roomParam) {
+      setSpectatorRoomId(roomParam);
+      setIsSpectatorMode(true);
+    } else {
+      const savedState = localStorage.getItem('rungchuongvang_current_session');
+      if (savedState) {
+        try {
+          setState(JSON.parse(savedState));
+        } catch (err) {
+          console.error('Không thể khôi phục phiên hoạt động cũ:', err);
+        }
       }
     }
 
     loadHistorySummaries();
   }, []);
+
+  // Listen to Firestore real-time session when in Spectator Mode
+  useEffect(() => {
+    if (isSpectatorMode && spectatorRoomId) {
+      const unsubscribe = listenToFirestoreSession(spectatorRoomId, (updatedState) => {
+        if (updatedState) {
+          setState(updatedState);
+        }
+      });
+      return () => {
+        unsubscribe();
+      };
+    }
+  }, [isSpectatorMode, spectatorRoomId]);
+
+  // Load saved questions log when session is active
+  useEffect(() => {
+    if (state?.id) {
+      const stored = localStorage.getItem(`rungchuongvang_saved_q_${state.id}`);
+      if (stored) {
+        try {
+          setSavedQuestions(JSON.parse(stored));
+        } catch (e) {
+          setSavedQuestions({});
+        }
+      } else {
+        setSavedQuestions({});
+      }
+    }
+  }, [state?.id]);
+
+  // Admin credentials management & logout
+  const handleChangeAdminCredentials = () => {
+    if (!newAdminUser && !newAdminPass) {
+      alert('Vui lòng nhập ít nhất Tên tài khoản mới hoặc Mật khẩu mới!');
+      return;
+    }
+    const currentUsername = localStorage.getItem('rungchuongvang_admin_user') || 'admin';
+    const currentPassword = localStorage.getItem('rungchuongvang_admin_pass') || 'admin';
+
+    const finalUser = newAdminUser || currentUsername;
+    const finalPass = newAdminPass || currentPassword;
+
+    localStorage.setItem('rungchuongvang_admin_user', finalUser);
+    localStorage.setItem('rungchuongvang_admin_pass', finalPass);
+
+    alert('Cập nhật tài khoản quản trị thành công!');
+    setNewAdminUser('');
+    setNewAdminPass('');
+  };
+
+  const handleAdminLogout = () => {
+    localStorage.removeItem('rungchuongvang_is_authenticated');
+    setIsAdminAuthenticated(false);
+    setIsSpectatorSetupMode(false);
+    setIsSpectatorMode(false);
+    setState(null);
+  };
 
   // Sync state to local storage automatically
   const saveStateToStorage = (newState: ContestState | null) => {
@@ -890,6 +974,65 @@ export default function App() {
     setEditingContestant(null);
   };
 
+  // If in Spectator Mode and state is not loaded yet, show loading spinner
+  if (isSpectatorMode) {
+    if (!state) {
+      return (
+        <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4">
+          <div className="text-center space-y-4">
+            <div className="inline-flex p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-2xl shadow-lg">
+              <Tv className="w-8 h-8 animate-pulse" />
+            </div>
+            <h2 className="text-lg font-black text-emerald-400 uppercase tracking-tight">
+              ĐANG KẾT NỐI REALTIME...
+            </h2>
+            <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
+              Hệ thống đang đồng bộ hóa trạng thái sân đấu trực tiếp từ Ban Tổ Chức. Vui lòng đợi trong giây lát!
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (spectatorViewType === 'projector') {
+      return (
+        <div className="fixed inset-0 z-50 overflow-auto bg-slate-950">
+          <ProjectorView 
+            state={state} 
+            isSpectator={true} 
+            onClose={() => {
+              setSpectatorViewType('dashboard');
+            }} 
+          />
+        </div>
+      );
+    }
+
+    return (
+      <SpectatorDashboard
+        state={state}
+        onExit={() => {
+          setIsSpectatorMode(false);
+          setSpectatorRoomId('');
+          setState(null);
+        }}
+        onSwitchToProjector={() => {
+          setSpectatorViewType('projector');
+        }}
+      />
+    );
+  }
+
+  // If not authenticated and not in temporary spectator setup tab, show login
+  if (!isAdminAuthenticated && !isSpectatorSetupMode) {
+    return (
+      <AdminLogin 
+        onLoginSuccess={() => setIsAdminAuthenticated(true)} 
+        onSwitchToSpectator={() => setIsSpectatorSetupMode(true)} 
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
       
@@ -1097,6 +1240,44 @@ export default function App() {
                   ))}
                 </select>
               </div>
+
+              {/* Thay đổi tài khoản Admin */}
+              <div className="pt-4 border-t border-slate-100 space-y-3">
+                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">
+                  Thay đổi tài khoản quản trị (Admin)
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 font-medium" htmlFor="admin-new-username">Tên tài khoản mới</label>
+                    <input
+                      id="admin-new-username"
+                      type="text"
+                      value={newAdminUser}
+                      onChange={(e) => setNewAdminUser(e.target.value.trim())}
+                      placeholder="admin"
+                      className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 font-medium" htmlFor="admin-new-password">Mật khẩu mới</label>
+                    <input
+                      id="admin-new-password"
+                      type="password"
+                      value={newAdminPass}
+                      onChange={(e) => setNewAdminPass(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleChangeAdminCredentials}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xxs rounded-lg transition-all cursor-pointer"
+                >
+                  Cập nhật tài khoản Admin
+                </button>
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
@@ -1120,6 +1301,12 @@ export default function App() {
           onLoadHistory={handleLoadHistory}
           onDeleteHistory={handleDeleteHistory}
           onResume={handleResumeActiveSession}
+          onConnectSpectator={(roomId) => {
+            setSpectatorRoomId(roomId);
+            setIsSpectatorMode(true);
+          }}
+          isSpectatorOnly={isSpectatorSetupMode}
+          onAdminLogout={handleAdminLogout}
         />
       ) : (
         /* Standard Panel screen */
@@ -1170,6 +1357,14 @@ export default function App() {
                 <ArrowLeft className="w-4 h-4 text-slate-600" />
                 <span>Trở về Trang chủ / Cài đặt</span>
               </button>
+
+              <button
+                id="btn-admin-logout"
+                onClick={handleAdminLogout}
+                className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 border border-rose-200/60"
+              >
+                <span>🚪 Đăng xuất Admin</span>
+              </button>
             </div>
           </div>
 
@@ -1181,6 +1376,18 @@ export default function App() {
             
             {/* Left controller sidebar */}
             <div className="lg:col-span-4 space-y-6">
+              
+              {/* Google Sheets & Realtime Broadcast Control Panel */}
+              <GoogleSheetsSyncPanel
+                state={state}
+                onStateUpdate={saveStateToStorage}
+                savedQuestions={savedQuestions}
+                onSavedQuestionsUpdate={(qLog) => {
+                  setSavedQuestions(qLog);
+                  localStorage.setItem(`rungchuongvang_saved_q_${state.id}`, JSON.stringify(qLog));
+                }}
+              />
+
               <AdminControls
                 state={state}
                 rescueMode={rescueMode}
