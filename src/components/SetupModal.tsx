@@ -142,7 +142,7 @@ export default function SetupModal({
 
   return (
     <div className="min-h-screen bg-[#0F172A] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans antialiased text-slate-100">
-      <div className="w-full max-w-3xl bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl overflow-hidden border border-slate-700/50 flex flex-col md:flex-row">
+      <div className="w-full max-w-5xl bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl overflow-hidden border border-slate-700/50 flex flex-col md:flex-row">
         
         {/* Sidebar Illustration/Branding */}
         <div className="md:w-1/3 bg-slate-950 p-8 flex flex-col justify-between text-white relative border-r border-slate-800/80">
